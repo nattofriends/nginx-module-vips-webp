@@ -67,12 +67,6 @@ static void ngx_http_vips_webp_exit_process(ngx_cycle_t *cycle) {
 static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
     // Only process GET and HEAD requests
     if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) {
-        return NGX_HTTP_NOT_ALLOWED; // should be DECLINED?
-    }
-
-    // Check the Accept header for "image/webp"
-    if (r->headers_in.accept == NULL || ngx_strstr(r->headers_in.accept->value.data, "image/webp") == NULL) {
-        // If not found, let the static handler take over
         return NGX_DECLINED;
     }
 
