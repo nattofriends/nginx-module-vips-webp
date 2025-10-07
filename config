@@ -1,0 +1,16 @@
+ngx_addon_name=ngx_http_vips_webp_module
+
+# This block is for dynamic module compilation
+if test -n "$ngx_module_link"; then
+    ngx_module_type=HTTP
+    ngx_module_name=$ngx_addon_name
+    ngx_module_srcs="$ngx_addon_dir/ngx_http_vips_webp_module.c"
+
+    # Add linker flags for libvips and its dependencies
+    ngx_module_libs="-lvips -lgobject-2.0 -lglib-2.0"
+
+    # Add include paths for libvips headers
+    CORE_INCS="$CORE_INCS /usr/include/glib-2.0 /usr/lib/x86_64-linux-gnu/glib-2.0/include"
+
+    . auto/module
+fi
