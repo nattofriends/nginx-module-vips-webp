@@ -108,6 +108,10 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
     }
     ngx_http_weak_etag(r);
 
+    // Unset Content-Length, which will be incorrect after conversion.
+    // This will cause chunked transfer encoding to be used
+    r->headers_out.content_length_n = -1;
+
     ngx_int_t rc = ngx_http_send_header(r);
 
     if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
@@ -138,8 +142,6 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
     g_object_unref(in);
 
     r->headers_out.status = NGX_HTTP_OK;
-    // Update with actual size
-    r->headers_out.content_length_n = webp_size;
 
     ngx_str_set(&r->headers_out.content_type, "image/webp");
     r->headers_out.content_type_len = sizeof("image/webp") - 1;
