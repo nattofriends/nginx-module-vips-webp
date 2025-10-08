@@ -98,7 +98,21 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
         return NGX_HTTP_NOT_FOUND;
     }
 
+    r->headers_out.status = NGX_HTTP_OK;
     r->headers_out.last_modified_time = ngx_file_mtime(&fi);
+    // Not actually true after conversion, but needed to generate ETag
+    r->headers_out.content_length_n = ngx_file_size(&fi);
+
+    if (ngx_http_set_etag(r) != NGX_OK) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    ngx_http_weak_etag(r);
+
+    ngx_int_t rc = ngx_http_send_header(r);
+
+    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+        return rc;
+    }
 
     // Use libvips to load the source JPEG file
     VipsImage *in;
@@ -123,22 +137,12 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
     }
     g_object_unref(in);
 
-    // Prepare the response headers
     r->headers_out.status = NGX_HTTP_OK;
+    // Update with actual size
     r->headers_out.content_length_n = webp_size;
-
-    ngx_http_set_etag(r);
-    ngx_http_weak_etag(r);
 
     ngx_str_set(&r->headers_out.content_type, "image/webp");
     r->headers_out.content_type_len = sizeof("image/webp") - 1;
-
-    // Send the headers
-    ngx_int_t rc = ngx_http_send_header(r);
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-        g_free(webp_buffer);
-        return rc;
-    }
 
     // Create a buffer chain to send the response body
     ngx_buf_t *b = ngx_create_temp_buf(r->pool, webp_size);
@@ -153,7 +157,7 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
     b->last_in_chain = 1;
     b->memory = 1;
 
-    g_free(webp_buffer); // The vips buffer can be freed now that its data is in an Nginx buffer.
+    g_free(webp_buffer);
 
     ngx_chain_t out;
     out.buf = b;
