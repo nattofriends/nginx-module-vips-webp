@@ -103,6 +103,9 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
     // Not actually true after conversion, but needed to generate ETag
     r->headers_out.content_length_n = ngx_file_size(&fi);
 
+    ngx_str_set(&r->headers_out.content_type, "image/webp");
+    r->headers_out.content_type_len = sizeof("image/webp") - 1;
+
     if (ngx_http_set_etag(r) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -140,11 +143,6 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     g_object_unref(in);
-
-    r->headers_out.status = NGX_HTTP_OK;
-
-    ngx_str_set(&r->headers_out.content_type, "image/webp");
-    r->headers_out.content_type_len = sizeof("image/webp") - 1;
 
     // Create a buffer chain to send the response body
     ngx_buf_t *b = ngx_create_temp_buf(r->pool, webp_size);
