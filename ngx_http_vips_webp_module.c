@@ -71,30 +71,18 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
     }
 
     // Construct the full path to the requested JPEG file
+    u_char *p;
+    size_t root;
     ngx_str_t path;
-    ngx_http_core_loc_conf_t *clcf;
-    clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
-
-    path.len = clcf->root.len + r->uri.len;
-    path.data = ngx_palloc(r->pool, path.len);
-    if (path.data == NULL) {
+    p = ngx_http_map_uri_to_path(r, &path, &root, 0);
+    if (p == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-
-    ngx_memcpy(path.data, clcf->root.data, clcf->root.len);
-    ngx_memcpy(path.data + clcf->root.len, r->uri.data, r->uri.len);
-
-    u_char *c_path = ngx_palloc(r->pool, path.len + 1);
-    if (c_path == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    ngx_memcpy(c_path, path.data, path.len);
-    c_path[path.len] = '\0';
 
     // Get file info (stat) to check for existence and get metadata for caching headers.
     ngx_file_info_t fi;
-    if (ngx_file_info((const char *)c_path, &fi) == NGX_FILE_ERROR) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "vips_webp: file not found: \"%s\"", c_path);
+    if (ngx_file_info(path.data, &fi) == NGX_FILE_ERROR) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "vips_webp: file not found: \"%s\"", path.data);
         return NGX_HTTP_NOT_FOUND;
     }
 
@@ -123,10 +111,10 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
 
     // Use libvips to load the source JPEG file
     VipsImage *in;
-    if (vips_jpegload((const char *)c_path, &in, NULL)) {
+    if (vips_jpegload(path.data, &in, NULL)) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "vips_jpegload failed for file: %s. Vips error: %s",
-                      c_path, vips_error_buffer());
+                      path.data, vips_error_buffer());
         vips_error_clear();
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
