@@ -86,29 +86,6 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
         return NGX_HTTP_NOT_FOUND;
     }
 
-    r->headers_out.status = NGX_HTTP_OK;
-    r->headers_out.last_modified_time = ngx_file_mtime(&fi);
-    // Not actually true after conversion, but needed to generate ETag
-    r->headers_out.content_length_n = ngx_file_size(&fi);
-
-    ngx_str_set(&r->headers_out.content_type, "image/webp");
-    r->headers_out.content_type_len = sizeof("image/webp") - 1;
-
-    if (ngx_http_set_etag(r) != NGX_OK) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    ngx_http_weak_etag(r);
-
-    // Unset Content-Length, which will be incorrect after conversion.
-    // This will cause chunked transfer encoding to be used
-    r->headers_out.content_length_n = -1;
-
-    ngx_int_t rc = ngx_http_send_header(r);
-
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-        return rc;
-    }
-
     // Use libvips to load the source JPEG file
     VipsImage *in;
     if (vips_jpegload(path.data, &in, NULL)) {
@@ -131,6 +108,24 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     g_object_unref(in);
+
+    r->headers_out.status = NGX_HTTP_OK;
+    r->headers_out.last_modified_time = ngx_file_mtime(&fi);
+
+    ngx_str_set(&r->headers_out.content_type, "image/webp");
+    r->headers_out.content_type_len = sizeof("image/webp") - 1;
+    r->headers_out.content_length_n = webp_size;
+
+    if (ngx_http_set_etag(r) != NGX_OK) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    ngx_http_weak_etag(r);
+
+    ngx_int_t rc = ngx_http_send_header(r);
+
+    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+        return rc;
+    }
 
     // Create a buffer chain to send the response body
     ngx_buf_t *b = ngx_create_temp_buf(r->pool, webp_size);
