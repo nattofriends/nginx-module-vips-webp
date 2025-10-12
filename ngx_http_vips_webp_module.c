@@ -93,7 +93,7 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
                       "vips_jpegload failed for file: %s. Vips error: %s",
                       path.data, vips_error_buffer());
         vips_error_clear();
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        return NGX_DECLINED;
     }
 
     // Convert the image to WEBP format in memory
@@ -105,7 +105,7 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
                       vips_error_buffer());
         vips_error_clear();
         g_object_unref(in);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        return NGX_DECLINED;
     }
     g_object_unref(in);
 
