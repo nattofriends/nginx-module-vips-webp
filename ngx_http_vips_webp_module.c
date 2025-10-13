@@ -9,6 +9,11 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r);
 static char *ngx_http_vips_webp(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_http_vips_webp_init_process(ngx_cycle_t *cycle);
 static void ngx_http_vips_webp_exit_process(ngx_cycle_t *cycle);
+static void ngx_vips_webp_cleanup(void *data);
+
+typedef struct {
+    void *buffer;
+} ngx_vips_webp_cleanup_t;
 
 // Defines the directive that will be used in nginx.conf
 static ngx_command_t ngx_http_vips_webp_commands[] = {
@@ -61,6 +66,15 @@ static ngx_int_t ngx_http_vips_webp_init_process(ngx_cycle_t *cycle) {
 // Cleans up libvips when a worker process exits
 static void ngx_http_vips_webp_exit_process(ngx_cycle_t *cycle) {
     vips_shutdown();
+}
+
+// Frees memory allocated by libvips after request
+static void ngx_vips_webp_cleanup(void *data) {
+    ngx_vips_webp_cleanup_t *cleanup_ctx = data;
+
+    if (cleanup_ctx->buffer) {
+        g_free(cleanup_ctx->buffer);
+    }
 }
 
 // Handler function that processes the request
@@ -128,19 +142,27 @@ static ngx_int_t ngx_http_vips_webp_handler(ngx_http_request_t *r) {
     }
 
     // Create a buffer chain to send the response body
-    ngx_buf_t *b = ngx_create_temp_buf(r->pool, webp_size);
-    if (b == NULL) {
+    ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, sizeof(ngx_vips_webp_cleanup_t));
+    if (cln == NULL) {
         g_free(webp_buffer);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    ngx_memcpy(b->pos, webp_buffer, webp_size);
-    b->last = b->pos + webp_size;
+    cln->handler = ngx_vips_webp_cleanup;
+    ngx_vips_webp_cleanup_t *cleanup_ctx = cln->data;
+    cleanup_ctx->buffer = webp_buffer;
+
+    ngx_buf_t *b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
+    if (b == NULL) {
+        // Cleanup handler will still fire, preventing a leak.
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    b->pos = webp_buffer;
+    b->last = webp_buffer + webp_size;
     b->last_buf = (r == r->main) ? 1 : 0;
     b->last_in_chain = 1;
     b->memory = 1;
-
-    g_free(webp_buffer);
 
     ngx_chain_t out;
     out.buf = b;
